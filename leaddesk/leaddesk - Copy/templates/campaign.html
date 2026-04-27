@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXOVA LeadDesk — Campaigns</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+
+  <nav class="topnav">
+    <div class="topnav-brand">
+      <span class="brand-name">NEXOVA</span>
+      <span class="brand-sub">LeadDesk</span>
+    </div>
+    <div class="topnav-right">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost btn-sm">Dashboard</a>
+      <a href="{{ url_for('settings') }}" class="btn btn-ghost btn-sm">Settings</a>
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}">{{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    {% if not config.get('gmail_address') or not config.get('ai_api_key') %}
+    <div class="alert alert-error">
+      Gmail or AI key not configured.
+      <a href="{{ url_for('settings') }}" style="color:inherit;text-decoration:underline;margin-left:4px;">Go to
+        Settings →</a>
+    </div>
+    {% endif %}
+
+    <!-- ── STEP 1: OFFER + SELECT LEADS ─────────────────────────── -->
+    <section class="card">
+      <h2 class="section-title">New Campaign</h2>
+
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label>Your Offer / Service *</label>
+        <textarea id="offerText" rows="2"
+          placeholder="e.g. I build modern websites for local businesses starting at ₹5000. Fast delivery, mobile-friendly, SEO ready."></textarea>
+        <span class="field-hint">AI uses this to write a unique email for each business.</span>
+      </div>
+
+      <!-- Filter -->
+      <form method="GET" action="{{ url_for('campaign') }}" style="margin-bottom:1rem;">
+        <div class="filter-row">
+          <select name="category" class="filter-select">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if active_category==cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+          <select name="status" class="filter-select">
+            <option value="">All Statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if active_status==s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-secondary">Filter</button>
+        </div>
+      </form>
+
+      {% if leads %}
+      <div class="table-wrap" style="margin-bottom:1rem;">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="selectAll" title="Select all" /></th>
+              <th>Business</th>
+              <th>Email</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lead in leads %}
+            <tr>
+              <td><input type="checkbox" class="lead-cb" value="{{ lead.id }}" /></td>
+              <td class="td-name">{{ lead.business_name }}</td>
+              <td class="td-email">{{ lead.email }}</td>
+              <td><span class="tag tag-cat">{{ lead.category }}</span></td>
+              <td><span class="tag tag-status tag-{{ lead.status|lower }}">{{ lead.status }}</span></td>
+              <td style="color:var(--text-muted);font-size:0.78rem;">{{ lead.notes or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        <button id="generateBtn" class="btn btn-primary">Generate Emails with AI</button>
+        <span id="selCount" style="font-size:0.8rem;color:var(--text-muted);">0 leads selected</span>
+      </div>
+
+      {% else %}
+      <div class="empty-state">
+        No leads with email addresses for this filter.<br />
+        <a href="{{ url_for('dashboard') }}" style="color:var(--text-muted);">Add leads with emails on the dashboard
+          →</a>
+      </div>
+      {% endif %}
+    </section>
+
+    <!-- ── STEP 2: PREVIEW ──────────────────────────────────────── -->
+    <section class="card" id="previewSection" style="display:none;">
+      <h2 class="section-title">Preview & Edit Emails</h2>
+      <p style="color:var(--text-muted);font-size:0.83rem;margin-bottom:1rem;">
+        Review each email. You can edit the subject and body before sending.
+      </p>
+      <div id="emailPreviews"></div>
+      <div style="margin-top:1rem;display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+        <button id="sendBtn" class="btn btn-primary">Send All Emails</button>
+        <span style="font-size:0.78rem;color:var(--text-dim);">2 second delay between each email</span>
+      </div>
+    </section>
+
+    <!-- ── STEP 3: RESULT ────────────────────────────────────────── -->
+    <div id="sendResult"></div>
+
+    <!-- ── LOADING ───────────────────────────────────────────────── -->
+    <div id="loadingOverlay" style="display:none;">
+      <div class="loading-box">
+        <div class="spinner"></div>
+        <p id="loadingText">Generating emails...</p>
+      </div>
+    </div>
+
+    <!-- ── HISTORY ───────────────────────────────────────────────── -->
+    {% if logs %}
+    <section class="card">
+      <h2 class="section-title">Campaign History <span class="badge">{{ logs|length }}</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>Email</th>
+              <th>Subject</th>
+              <th>Status</th>
+              <th>Sent At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+            <tr>
+              <td class="td-name">{{ log.business_name }}</td>
+              <td class="td-email">{{ log.email }}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.82rem;">
+                {{ log.subject }}</td>
+              <td>
+                <span class="tag tag-status {% if log.status=='sent' %}tag-closed{% else %}tag-fail{% endif %}">
+                  {{ log.status }}
+                </span>
+              </td>
+              <td class="td-date">{{ log.sent_at }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    // Select all
+    var selAll = document.getElementById('selectAll');
+    var selCount = document.getElementById('selCount');
+
+    function updateCount() {
+      var n = document.querySelectorAll('.lead-cb:checked').length;
+      selCount.textContent = n + ' lead' + (n !== 1 ? 's' : '') + ' selected';
+    }
+    if (selAll) {
+      selAll.addEventListener('change', function () {
+        document.querySelectorAll('.lead-cb').forEach(function (cb) { cb.checked = selAll.checked; });
+        updateCount();
+      });
+    }
+    document.querySelectorAll('.lead-cb').forEach(function (cb) {
+      cb.addEventListener('change', updateCount);
+    });
+
+    // Generate
+    document.getElementById('generateBtn')?.addEventListener('click', async function () {
+      var offer = document.getElementById('offerText').value.trim();
+      if (!offer) { alert('Enter your offer description first.'); return; }
+      var ids = [...document.querySelectorAll('.lead-cb:checked')].map(function (cb) { return parseInt(cb.value); });
+      if (!ids.length) { alert('Select at least one lead.'); return; }
+
+      showLoading('Generating ' + ids.length + ' personalised emails with AI...');
+      try {
+        var r = await fetch('/campaign/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer: offer, lead_ids: ids })
+        });
+        var data = await r.json();
+        hideLoading();
+        if (data.error) { alert('Error: ' + data.error); return; }
+        renderPreviews(data.emails);
+      } catch (e) { hideLoading(); alert('Something went wrong: ' + e.message); }
+    });
+
+    function renderPreviews(emails) {
+      var c = document.getElementById('emailPreviews');
+      c.innerHTML = '';
+      emails.forEach(function (em, i) {
+        var d = document.createElement('div');
+        d.className = 'ep-card';
+        if (em.error) {
+          d.innerHTML = '<div class="ep-head"><span class="ep-name">' + esc(em.business_name) + '</span>'
+            + '<span class="tag" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:#ef4444;">Error</span></div>'
+            + '<p style="color:#ef4444;font-size:0.8rem;margin-top:0.4rem;">' + esc(em.error) + '</p>';
+        } else {
+          d.innerHTML = '<div class="ep-head"><span class="ep-name">' + esc(em.business_name) + '</span>'
+            + '<span class="ep-to">' + esc(em.email) + '</span></div>'
+            + '<div class="form-group" style="margin-bottom:0.5rem;"><label>Subject</label>'
+            + '<input type="text" class="ep-subj" value="' + esc(em.subject) + '"/></div>'
+            + '<div class="form-group"><label>Body</label>'
+            + '<textarea class="ep-body" rows="5">' + esc(em.body) + '</textarea></div>'
+            + '<input type="hidden" class="ep-lid" value="' + em.lead_id + '"/>'
+            + '<input type="hidden" class="ep-email" value="' + esc(em.email) + '"/>';
+        }
+        c.appendChild(d);
+      });
+      document.getElementById('previewSection').style.display = 'block';
+      document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Send
+    document.getElementById('sendBtn')?.addEventListener('click', async function () {
+      if (!confirm('Send all emails now? This cannot be undone.')) return;
+      var emails = [];
+      document.querySelectorAll('.ep-card').forEach(function (card) {
+        var lid = card.querySelector('.ep-lid')?.value;
+        var email = card.querySelector('.ep-email')?.value;
+        var subj = card.querySelector('.ep-subj')?.value;
+        var body = card.querySelector('.ep-body')?.value;
+        if (lid && email && subj && body) emails.push({ lead_id: parseInt(lid), email, subject: subj, body });
+      });
+      if (!emails.length) { alert('No valid emails to send.'); return; }
+
+      showLoading('Sending ' + emails.length + ' emails via Gmail...');
+      try {
+        var r = await fetch('/campaign/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emails })
+        });
+        var data = await r.json();
+        hideLoading();
+        if (data.error) { alert('Error: ' + data.error); return; }
+
+        var rd = document.getElementById('sendResult');
+        rd.innerHTML = '<div class="card" style="border-color:#22c55e;">'
+          + '<h2 class="section-title" style="color:#22c55e;">Campaign Complete</h2>'
+          + '<p>' + data.message + '</p>'
+          + (data.sent.length ? '<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.4rem;">Sent: ' + data.sent.join(', ') + '</p>' : '')
+          + (data.failed.length ? '<p style="color:#ef4444;font-size:0.8rem;margin-top:0.4rem;">Failed: ' + data.failed.map(function (f) { return f.email; }).join(', ') + '</p>' : '')
+          + '<a href="' + window.location.pathname + '" class="btn btn-ghost btn-sm" style="margin-top:1rem;">New Campaign</a></div>';
+        rd.scrollIntoView({ behavior: 'smooth' });
+      } catch (e) { hideLoading(); alert('Something went wrong: ' + e.message); }
+    });
+
+    function showLoading(txt) {
+      document.getElementById('loadingText').textContent = txt;
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+    function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+
+</html>

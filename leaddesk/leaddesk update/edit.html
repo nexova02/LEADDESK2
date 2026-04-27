@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NEXOVA LeadDesk — Edit Lead</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<!-- ── Top Navigation ──────────────────────────────────────────────────── -->
+<nav class="topnav">
+  <div class="topnav-brand"><span class="brand-name">NEXOVA</span><span class="brand-sub">LeadDesk</span></div>
+  <div class="topnav-right">
+    <span class="nav-user">{{ current_user }}</span>
+    <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+  </div>
+</nav>
+
+<div class="page-container">
+  <div class="card edit-card">
+
+    <div class="edit-header">
+      <a href="{{ url_for('dashboard') }}" class="back-link">← Back to Dashboard</a>
+      <h2 class="section-title">Edit Lead</h2>
+    </div>
+
+    <!-- Read-only info panel -->
+    <div class="lead-info-grid">
+      <div class="info-item">
+        <span class="info-label">Business</span>
+        <span class="info-value">{{ lead.business_name }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Phone</span>
+        <span class="info-value td-mono">{{ lead.phone }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Email</span>
+        <span class="info-value">{{ lead.email or '—' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Website</span>
+        <span class="info-value">
+          {% if lead.website %}
+            <a href="{{ lead.website }}" target="_blank" class="link">{{ lead.website }}</a>
+          {% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Category</span>
+        <span class="info-value"><span class="tag tag-cat">{{ lead.category }}</span></span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Date Added</span>
+        <span class="info-value">{{ lead.date_added }}</span>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Editable fields -->
+    <form method="POST" action="{{ url_for('edit_lead', lead_id=lead.id) }}">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in statuses %}
+              <option value="{{ s }}" {% if lead.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Assigned To</label>
+          <select name="assigned_to">
+            {% for u in users %}
+              <option value="{{ u }}" {% if lead.assigned_to == u %}selected{% endif %}>{{ u }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group form-group-full">
+          <label>Notes</label>
+          <textarea name="notes" rows="4" placeholder="Add notes here…">{{ lead.notes or '' }}</textarea>
+        </div>
+
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

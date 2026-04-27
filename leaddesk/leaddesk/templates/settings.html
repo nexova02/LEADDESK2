@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXOVA LeadDesk — Settings</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+
+  <nav class="topnav">
+    <div class="topnav-brand">
+      <span class="brand-name">NEXOVA</span>
+      <span class="brand-sub">LeadDesk</span>
+    </div>
+    <div class="topnav-right">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost btn-sm">Dashboard</a>
+      <a href="{{ url_for('campaign') }}" class="btn btn-ghost btn-sm">Campaigns</a>
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}">{{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="card" style="max-width:600px;">
+      <h2 class="section-title">⚙ Settings</h2>
+      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:1.5rem;">
+        Configure your AI provider and Gmail account for sending cold email campaigns.
+      </p>
+
+      <form method="POST" action="{{ url_for('settings') }}">
+
+        <!-- ── AI SECTION ──────────────────────────────────────── -->
+        <div class="settings-section">
+          <div class="settings-heading">🤖 AI Email Writer</div>
+
+          <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>Provider</label>
+            <select name="ai_provider" id="aiProvider">
+              <option value="groq" {% if config.get('ai_provider','groq')=='groq' %}selected{% endif %}>Groq — Free,
+                Fastest (Recommended)</option>
+              <option value="gemini" {% if config.get('ai_provider','groq')=='gemini' %}selected{% endif %}>Google
+                Gemini — Free</option>
+              <option value="openai" {% if config.get('ai_provider','groq')=='openai' %}selected{% endif %}>OpenAI GPT —
+                Paid, Best quality</option>
+              <option value="mistral" {% if config.get('ai_provider','groq')=='mistral' %}selected{% endif %}>Mistral AI
+                — Free tier</option>
+              <option value="custom" {% if config.get('ai_provider','groq')=='custom' %}selected{% endif %}>Custom / Any
+                other AI (OpenAI-compatible)</option>
+            </select>
+          </div>
+
+          <!-- Hints per provider -->
+          <div id="h-groq" class="ph"
+            style="display:{% if config.get('ai_provider','groq')=='groq'    %}block{% else %}none{% endif %};">
+            <div class="info-box">Get your free key at <strong>console.groq.com</strong> → API Keys<br>Key starts with
+              <code>gsk_</code> — 1000+ free emails/day.</div>
+          </div>
+          <div id="h-gemini" class="ph"
+            style="display:{% if config.get('ai_provider','groq')=='gemini'  %}block{% else %}none{% endif %};">
+            <div class="info-box">Get your free key at <strong>aistudio.google.com</strong> → Get API Key<br>Key starts
+              with <code>AIza</code> — 1500 free requests/day.</div>
+          </div>
+          <div id="h-openai" class="ph"
+            style="display:{% if config.get('ai_provider','groq')=='openai'  %}block{% else %}none{% endif %};">
+            <div class="info-box">Get your key at <strong>platform.openai.com</strong> → API Keys<br>Key starts with
+              <code>sk-</code> — Pay per use, best email quality.</div>
+          </div>
+          <div id="h-mistral" class="ph"
+            style="display:{% if config.get('ai_provider','groq')=='mistral' %}block{% else %}none{% endif %};">
+            <div class="info-box">Get your free key at <strong>console.mistral.ai</strong> → API Keys<br>Free tier
+              available.</div>
+          </div>
+          <div id="h-custom" class="ph"
+            style="display:{% if config.get('ai_provider','groq')=='custom'  %}block{% else %}none{% endif %};">
+            <div class="info-box">Works with any OpenAI-compatible API (Together AI, Ollama, Anyscale, etc.)<br>Enter
+              your full API endpoint URL below.</div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>API Key</label>
+            <input type="text" name="ai_api_key" value="{{ config.get('ai_api_key','') }}"
+              placeholder="Paste your API key here" />
+          </div>
+
+          <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>Model Name <span class="optional-label">(optional — leave blank for default)</span></label>
+            <input type="text" name="ai_model" value="{{ config.get('ai_model','') }}"
+              placeholder="e.g. llama-3.3-70b-versatile, gpt-4o-mini" />
+          </div>
+
+          <div class="form-group" id="customUrlRow"
+            style="display:{% if config.get('ai_provider','groq')=='custom' %}block{% else %}none{% endif %};">
+            <label>Custom API URL</label>
+            <input type="text" name="ai_custom_url" value="{{ config.get('ai_custom_url','') }}"
+              placeholder="https://api.together.xyz/v1/chat/completions" />
+          </div>
+
+        </div>
+
+        <hr class="divider" />
+
+        <!-- ── GMAIL SECTION ────────────────────────────────────── -->
+        <div class="settings-section">
+          <div class="settings-heading">📧 Gmail Sender</div>
+
+          <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>Your Name <span class="optional-label">(shown to email recipients)</span></label>
+            <input type="text" name="sender_name" value="{{ config.get('sender_name','') }}"
+              placeholder="Rahul Sharma" />
+          </div>
+
+          <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>Gmail Address</label>
+            <input type="email" name="gmail_address" value="{{ config.get('gmail_address','') }}"
+              placeholder="yourname@gmail.com" />
+          </div>
+
+          <div class="form-group">
+            <label>Gmail App Password</label>
+            <input type="password" name="gmail_password" value="{{ config.get('gmail_password','') }}"
+              placeholder="xxxx xxxx xxxx xxxx" />
+            <span class="field-hint">
+              Not your Gmail login password — get App Password at:
+              <strong>myaccount.google.com → Security → App Passwords</strong>
+            </span>
+          </div>
+
+          <div class="info-box" style="margin-top:0.85rem;">
+            <strong>How to get Gmail App Password:</strong><br>
+            1. Go to <strong>myaccount.google.com</strong><br>
+            2. Click <strong>Security</strong><br>
+            3. Turn on <strong>2-Step Verification</strong> if not already on<br>
+            4. Search <strong>"App Passwords"</strong> in the search bar<br>
+            5. Select app: <strong>Mail</strong> → device: <strong>Windows Computer</strong><br>
+            6. Click <strong>Generate</strong> — copy the 16-character password<br>
+            7. Paste it above (spaces are fine)
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+          <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script>
+    var sel = document.getElementById('aiProvider');
+    function updateProvider() {
+      var v = sel.value;
+      document.querySelectorAll('.ph').forEach(function (el) { el.style.display = 'none'; });
+      var h = document.getElementById('h-' + v);
+      if (h) h.style.display = 'block';
+      document.getElementById('customUrlRow').style.display = v === 'custom' ? 'block' : 'none';
+    }
+    sel.addEventListener('change', updateProvider);
+  </script>
+
+</body>
+
+</html>
